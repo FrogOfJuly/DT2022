@@ -85,3 +85,31 @@
   | suc x, suc y => gt x y
   | suc x, zero => true
   | _, _ => false
+
+\func minus (x y : Nat) : Nat => minus' (x + 1) 0 x y
+  \where
+    \func minus' (fuel diff x y : Nat) : Nat \elim fuel
+      | suc fuel => \case ge (y + diff) x \with {
+        | true => diff
+        | false => minus' fuel (suc diff) x y
+      }
+      | zero => 0
+
+\func mod (x y : Nat) : Nat \elim y
+  | zero => zero
+  | suc y => mod' (x + y + 1) 0 x (suc y)
+  \where
+    \func mod' (fuel acc x y : Nat) : Nat \elim fuel
+      | zero => zero
+      | suc fuel => \case gt ((suc acc) * y) x \with  {
+        | false => mod' fuel (suc acc) x y
+        | true => minus x (acc * y)
+      }
+
+\func gcd (x y : Nat) : Nat => gcd' (x + y + 1) x y
+  \where
+    \func gcd' (fuel x y : Nat) : Nat \elim fuel, y
+      | _, zero => x
+      | zero, _ => zero
+      | (suc fuel), (suc y) => gcd' fuel (suc y) (mod x (suc y))
+
