@@ -1,3 +1,5 @@
+\import Function(id)
+\import Function.Meta ($)
 \import Utils
 \import lect04 \hiding (J, Vec, nil, sym, v++)
 \open Nat(+,*)
@@ -12,28 +14,88 @@
   | suc x, 0 => false
   | suc x, suc y => x < y
 
-\func lookup => {?}
+\func <mon {a : Nat} : T (0 < suc a)
+  | {0} => ()
+  | {suc a} => ()
+
+\func <double-mon {a b : Nat} (p : T (suc a < suc b)) : T (a < b)
+  | {0}, {suc b}, _ => <mon {suc b}
+  | {suc a}, {suc b}, p => <double-mon {a} {b} p
+
+\func lookup {A : \Type} {n : Nat} (v : Vec A n) (idx : Nat) (p : T (idx < n)) : A \elim n, v, idx
+  | 0, vnil, 0 => absurd p
+  | 0, vnil, suc idx => absurd p
+  | suc n, vcons a v, 0 => a
+  | suc n, vcons a v, suc idx =>
+    \let
+      | p' => <double-mon {idx} {n} p
+    \in lookup v idx p'
 
 -- 2. Реализуйте аналоги функции replicate для vec и Vec (эта функция создает список заданной длины, состоящий из повторений данного элемента).
 
+\func replicate {A : \Type} (n : Nat) (a : A) : Vec A n \elim n
+  | 0 => vnil
+  | suc n => vcons a (replicate n a)
+
+\func replicate' {A : \Type} (n : Nat) (a : A) : vec A n \elim n
+  | 0 => ()
+  | suc n => (a, replicate' n a)
+
 -- 3. Реализуйте аналоги функции map для vec и Vec.
+
+\func map {A B : \Type} {n : Nat} (f : A -> B) (v : Vec A n) : Vec B n \elim n, v
+  | 0, vnil => vnil
+  | suc n, vcons a v => vcons (f a) $ map f v
+
+\func map' {A B : \Type} {n : Nat} (f : A -> B) (v : vec A n) : vec B n \elim n, v
+  | 0, () => ()
+  | suc n, (a, v) => (f a,  map' f v)
 
 -- 4. Реализуйте аналоги функции zipWith для vec и Vec.
 --    Функция должна принимать вектора одинаковой длины.
 
+\func zipWith {A B C : \Type} {n : Nat} (f : A -> B -> C) (v : Vec A n) (v' : Vec B n) : Vec C n \elim n, v, v'
+  | 0, vnil, vnil => vnil
+  | suc n, vcons a v, vcons a' v' => vcons (f a a') $ zipWith f v v'
+
+\func zipWith' {A B C : \Type} {n : Nat} (f : A -> B -> C) (v : vec A n) (v' : vec B n) : vec C n \elim n, v, v'
+  | 0, (), () => ()
+  | suc n, (a, v), (a', v') => (f a a', zipWith' f v v')
+
 -- 5. Определите тип CTree A n полных бинарных деревьев высоты ровно n, которые хранят элементы только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
 
-\data CTree (A : \Type) (n : Nat)
+\data CTree (A : \Type) (n : Nat) \elim n
+  | 0 => CLeaf
+  | suc n => CNode (CTree A n) A (CTree A n)
 
 -- 6. Определите тип Tree A n бинарных деревьев высоты не больше n, которые хранят элементы только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
 
-\data Tree (A : \Type) (n : Nat)
+\data Tree (A : \Type) (n : Nat) \elim n
+  | 0 => Leaf
+  | suc n => Node (Maybe (Tree A n)) A (Maybe (Tree A n))
 
 -- определите функцию, возвращающую высоту дерева.
 
-\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) => {?}
+\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) \elim n, t
+  | 0, Leaf => fzero
+  | suc n, Node m a m' => \case m, m' \with {
+    | nothing, nothing => fsuc fzero
+    | nothing, just a => fsuc (height n a)
+    | just a, nothing => fsuc (height n a)
+    | just a, just a' => \let
+      | h => height n a
+      | h' => height n a'
+    \in fsuc $ max h h'
+  }
+    \where {
+      \func max {n : Nat} (lhs rhs : Fin n) : Fin n \elim n, lhs, rhs
+        | suc n, fzero, fzero => fzero
+        | suc n, fsuc lhs, fzero => fsuc lhs
+        | suc n, fzero, fsuc rhs => fsuc rhs
+        | suc n, fsuc lhs, fsuc rhs => fsuc $ max lhs rhs
+    }
 
 -- Optional task
 -- 7. Функции Fin n -> A соответствуют спискам элементов A длины n.
@@ -45,7 +107,7 @@
 -- Optional task
 -- 8. Определите тип матриц и ряд функций над ними.
 
-\func Mat (A : \Type) (n m : Nat) : \Type => {?}
+\func Mat (A : \Type) (n m : Nat) : \Type => Vec A (n * m)
 
 -- диагональная матрица с элементами e на диагонали и z на остальных позициях.
 
@@ -57,7 +119,7 @@
 
 -- сложение матриц
 
-\func matAdd {A : \Type} (add : A -> A -> A) (n m : Nat) (M N : Mat A n m) : Mat A n m => {?}
+\func matAdd {A : \Type} (add : A -> A -> A) (n m : Nat) (M N : Mat A n m) : Mat A n m => zipWith add M N
 
 -- умножение матриц
 
@@ -75,6 +137,33 @@
   | con2 D D
   | con3 (Nat -> D)
 
+\func D-elim  (P : D -> \Type)
+              (one : \Pi (n : Nat) -> P (con1 n))
+              (two : \Pi (d1 : D) -> \Pi (d2 : D) -> P d1 -> P d2 -> P (con2 d1 d2))
+              (three : \Pi (f : Nat -> D) -> (\Pi (n : Nat) -> P (f n)) -> P (con3 f)) (x : D) : P x \elim x
+  | con1 n1 => one n1
+  | con2 x1 x2 => two x1 x2 (D-elim P one two three x1) (D-elim P one two three x2)
+  | con3 _x => three _x (\lam n => D-elim P one two three (_x n))
+
+\func D-rec (P : \Type)
+            (one : Nat -> P )
+            (two : D -> D -> P -> P -> P)
+            (three : (Nat -> D) -> (Nat -> P) -> P)
+            (x : D) : P \elim x
+| con1 n1 => one n1
+| con2 x1 x2 => two x1 x2 (D-rec P one two three x1) (D-rec P one two three x2)
+| con3 _x => three _x (\lam n => D-rec P one two three (_x n))
+
+\func foo (d : D) : Nat => D-rec
+    Nat
+    id
+    (\lam _ _ p1 p2 => p1 Nat.+ p2)
+    (\lam g pToNat => pToNat $ pToNat 100)
+    d
+
+-- inst => con2 (con1 3) (con3 (\lam n => con1 (n + 1)))
+
+\func check : foo (con2 (con1 3) (con3 (\lam n => con2 (con1 $ n + 1) (con1 $ 2 * n)))) = 907 => idp
 {- To check that the definition of D-elim and D-rec is correct, you can try to implement foo using D-rec.
 \func foo (d : D) : Nat
   | con1 n => n
@@ -84,20 +173,40 @@
 
 -- 12. Определите рекурсор и элиминатор для List.
 
+\func List-rec  {A : \Type}
+                (P : \Type)
+                (one : P)
+                (two : A -> List A -> P -> P)
+                (l : List A) : P \elim l
+  | nil => one
+  | :: a l => two a l (List-rec P one two l)
+
+
+\func List-elim {A : \Type}
+                (P : List A -> \Type)
+                (one : P nil)
+                (two : \Pi (a : A) -> \Pi (l : List A) -> P l -> P (:: a l))
+                (l : List A) : P l \elim l
+  | nil => one
+  | :: a l => two a l (List-elim P one two l)
+
 -- 13. Докажите pmap при помощи паттерн матчинга с idp.
 
-\func pmap {A B : \Type} (f : A -> B) {a a' : A} (p : a = a') : f a = f a' => {?}
+\func pmap {A B : \Type} (f : A -> B) {a a' : A} (p : a = a') : f a = f a' \elim p
+  | idp => idp
 
 -- 14. Докажите pmap2 при помощи паттерн матчинга с idp.
 
-\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' => {?}
+\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' \elim p, q
+  | idp, idp => idp
 
 -- Optional task
 -- 15. У оператора J есть другая форма, которую мы будем называть Jalt. Докажите, что J и Jalt эквивалентны, то есть выразите одно через другое и наоборот.
 
 -- Выразите Jalt через J. Можно пользоваться только J, idp и всем, что через них выражается.
 
-\func Jalt {A : \Type} (B : \Pi (a a' : A) -> a = a' -> \Type)
+\func Jalt {A : \Type}
+           (B : \Pi (a a' : A) -> a = a' -> \Type)
            (b : \Pi (a : A) -> B a a idp)
            {a a' : A} (p : a = a') : B a a' p => {?}
 
