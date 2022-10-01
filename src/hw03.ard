@@ -3,8 +3,8 @@
 \open Nat(+,*)
 
 -- 1. Чему равно fileTest (в нормальной форме)? Докажите это.
-\import lect03(+-comm, M5, fileTest)
-\func fileTestEq : fileTest = (17, 8, 13, 55, 18, 21) => idp
+\import lect03(+-comm, M5, fileTest, foobar)
+\func fileTestEq : fileTest = (foobar, 8, 13, 55, 18, 21) => idp
 
 -- 2. Чему равно M5.t''' (в нормальной форме)? Докажите это.
 
