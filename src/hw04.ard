@@ -74,21 +74,15 @@
 
 \data Tree (A : \Type) (n : Nat) \elim n
   | 0 => Leaf
-  | suc n => Node (Maybe (Tree A n)) A (Maybe (Tree A n))
+  | suc n => Single (Tree A n)
+  | suc n => Node (Tree A n) A (Tree A n)
 
 -- определите функцию, возвращающую высоту дерева.
 
 \func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) \elim n, t
   | 0, Leaf => fzero
-  | suc n, Node m a m' => \case m, m' \with {
-    | nothing, nothing => fsuc fzero
-    | nothing, just a => fsuc (height n a)
-    | just a, nothing => fsuc (height n a)
-    | just a, just a' => \let
-      | h => height n a
-      | h' => height n a'
-    \in fsuc $ max h h'
-  }
+  | suc n, Single t => fsuc $ height n t
+  | suc n, Node l a r => fsuc $ max (height n l) (height n r)
     \where {
       \func max {n : Nat} (lhs rhs : Fin n) : Fin n \elim n, lhs, rhs
         | suc n, fzero, fzero => fzero
