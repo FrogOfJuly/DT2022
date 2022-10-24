@@ -1,45 +1,163 @@
+\import Function.Meta
 \import Utils
+\import hw01 (gcd)
+\import lect05
 \import lect06
-\open Nat(+)
 
 -- 1. Определите функцию swap несколькими способами.
 
 -- При помощи \cowith и доступа к полям.
-\func swap {A B : \Type} (p : Pair A B) : Pair B A => {?}
+
+\func swap {A B : \Type} (p : Pair A B) : Pair B A \cowith
+  | fst_ => p.snd_
+  | snd_ => p.fst_
 
 -- При помощи \new и паттерн матчинга.
-\func swap' {A B : \Type} (p : Pair A B) : Pair B A => {?}
+
+\func swap' {A B : \Type} (p : Pair A B) : Pair B A \elim p
+  | (a,b) => \new Pair {
+    | fst_ => b
+    | snd_ => a
+  }
 
 -- При помощи \new и доступа к полям.
-\func swap'' {A B : \Type} (p : Pair A B) : Pair B A => {?}
+
+\func swap'' {A B : \Type} (p : Pair A B) : Pair B A => \new Pair {
+  | fst_ => p.snd_
+  | snd_ => p.fst_
+}
 
 -- 2. Докажите, что swap (swap p) = p.
 
-\func swap-involutive {A B : \Type} (p : Pair A B) : swap (swap p) = p => {?}
+\func swap-involutive {A B : \Type} (p : Pair A B) : swap (swap p) = p \elim p
+  | (a,b) => idp
 
 -- 3. Докажите, что тип PosNat 0 пустой, а тип PosNat 1 нет.
 
-\func zero-isNotPos (p : PosNat 0) : Empty => {?}
+\func zero-isNotPos (p : PosNat 0) : Empty => \case p.p \with {
+}
 
-\func one-isPos : PosNat 1 => {?}
+\func one-isPos : PosNat 1 => \new PosNat {
+  | p => ()
+}
 
 -- 4. Определите \record, состоящий из пар взаимно простых натуральных чисел.
 --    Определите тип, состоящий из натуральных чисел, взаимно простых с 60.
+
+\record MutuallyPrime (n m : Nat) (p : gcd n m = 1)
+
+\type MutallyPrimeWith60 => MutuallyPrime 60
 
 -- 5. Закончите определение класса монад. Этот класс должен содержать все монадные законы и реализовывать все поля из класса функторов.
 
 \class Monad \extends Functor
   | return {A : \Set} : A -> F A
   | \infixl 1 >>= {A B : \Set} : F A -> (A -> F B) -> F B
+  | >>=-left-id {A B : \Set} (mf : A -> F B) : \Pi (x : A) -> (return x >>= mf) = mf x
+  | >>=-right-id {B : \Set} (mf : F B) : (mf >>= return) = mf
+  | >>=-assoc {B C D : \Set} (fx : F B) (g : B -> F C) (h : C -> F D) : (fx >>= (\lam x => g x >>= h)) = ((fx >>= g) >>= h)
+  | Functor.fmap => \lam f fa => fa >>= \lam a => return (f a)
+  | Functor.fmap-id => \lam x => >>=-right-id x
+  -- fmap id x = x
+  -- \lam f c => c >>= \lam cx => return (f cx) $ id $ x = x
+  -- \lam c => c >>= \lam cx => return (id cx) $ x = x
+  -- \lam c => c >>= \lam cx => return cx $ x = x
+  -- x >>= return = x
+  | Functor.fmap-comp => \lam f g x => pmap (\lam r => x >>= r) (funExt' (\lam a => idp *> sym (>>=-left-id _ _))) *> >>=-assoc x  _ _
+--     fmap (\lam a => g (f a)) x = fmap g (fmap f x)
+-- idp
+--                 fmap (g . f) x = fmap f (fmap g x)
+-- idp
+--           x >>= return . f . g = (x >>= return . f) >>= return . g
+-- _ *> (>>=-assoc _ _ _ _ : x >>= (\a -> return (f a) >>= return . g) = (x >>= return . f) >>= return . g
+--           x >>= return . f . g = x >>= (\a -> return (f a) >>= return . g)
+-- pmap (\r -> x >>= r) _
+--                 return . f . g = \a -> return (f a) >>= return . g
+-- idp
+--         \a -> return (f (g a)) = \a -> return (f a) >>= return . g
+-- funcext
+--               return (f (g a)) = return (f a) >>= return . g
+-- _ *> sym (>>=-left-id _ _ ) : return (f . g $ a ) = return (f a) >>= return . g
+--               return (f (g a)) = return (f (g a))
 
 -- 6. Определите \instance Monad для Maybe.
 
-\instance MaybeMonad : Monad Maybe => {?}
+\instance MaybeMonad : Monad Maybe
+  | return {A : \Set} : A -> Maybe A => \lam x => just x
+  | >>= {A B : \Set} : Maybe A -> (A -> Maybe B) -> Maybe B => \lam x mf => \case x \with{
+    | nothing => nothing
+    | just a => mf a
+  }
+  | >>=-left-id => \lam x mf => idp
+  | >>=-right-id {B : \Set} (mf : Maybe B) : (mf >>= return) = mf \elim mf {
+    | nothing => idp
+    | just a => idp
+  }
+  | >>=-assoc {B C D : \Set} (fx : Maybe B) (g : B -> Maybe C) (h : C -> Maybe D) : (fx >>= (\lam x => g x >>= h)) = ((fx >>= g) >>= h) \elim fx {
+    | nothing => idp
+    | just a => idp
+  }
 
 -- 7. Определите \instance Monad для State и State'.
 
 \record State (S A : \Type)
   | state : S -> \Sigma S A
 
+\func runState {S A : \Type} (st : State S A) (s : S) : \Sigma S A => st.state s
+
+\instance StateMonad (S : \Set) : Monad (State S)
+  | return {A : \Set} (a : A) : State S A => \new State {
+    | state => \lam s => (s, a)
+  }
+  | >>= {A B : \Set} (x : State S A) (f : A -> State S B) : State S B => \new State {
+    | state => \lam s =>
+        \let
+          | (s', a) => runState x s
+        \in runState (f a) s'
+  }
+  | >>=-left-id {A B : \Set} (mf : A -> State S B) (x : A) : (return x >>= mf) = mf x => idp
+  | >>=-right-id {B : \Set} (mf : State S B) : (mf >>= return) = mf => idp
+  | >>=-assoc {B C D : \Set} (fx : State S B) (g : B -> State S C) (h : C -> State S D) : (fx >>= (\lam x => g x >>= h)) = ((fx >>= g) >>= h) => idp
+
 \data State' (S A : \Type)
   | state' (S -> \Sigma S A)
+
+\func runState' {S A : \Type} (x : State' S A) (s : S) : \Sigma S A => (unwrap x) s
+
+\func unwrap {S A : \Type} (st : State' S A) : S -> \Sigma S A \elim st
+  | state' _x => _x
+
+\func meh {S A : \Type} (x : State' S A) : x = state' (unwrap x) \elim x
+  | state' _x => idp
+
+\func meh' {S A : \Type} (f : S -> \Sigma S A) : f = unwrap (state' f) => idp
+
+\instance State'Monad (S : \Set) : Monad (State' S)
+  | return {A : \Set} (a : A) : State' S A => state' $ \lam s => (s, a)
+  | >>= {A B : \Set} (x : State' S A) (f : A -> State' S B) : State' S B => state' (\lam s =>
+      \let
+        | (s', a) => runState' x s
+      \in runState' (f a) s')
+  | >>=-left-id {A B : \Set} (mf : A -> State' S B) (x : A) : (return x >>= mf) = mf x => sym $ meh (mf x)
+--    (return x >>= mf) = mf x
+-- idp
+--    state' (\s -> (s, x)) >>= mf
+-- idp
+--    state' $ \s -> let
+--                       (s', a) = runState' $ state' (\s -> (s, x)) $ s
+--                   in  runState' (mf a) s'
+-- idp
+--    state' $ \s -> let
+--                       (s', a) = \s -> (s, x) $ s
+--                   in  (unwrap (mf a)) s'
+-- idp
+--   state' $ \s -> (unwrap (mf x)) s
+-- idp
+--   state' $ unwrap (mf x)
+
+
+
+  | >>=-right-id {B : \Set} (mf : State' S B) : (mf >>= return) = mf \elim mf {
+    | state' _x => idp
+  }
+  | >>=-assoc {B C D : \Set} (fx : State' S B) (g : B -> State' S C) (h : C -> State' S D) : (fx >>= (\lam x => g x >>= h)) = ((fx >>= g) >>= h) => idp
