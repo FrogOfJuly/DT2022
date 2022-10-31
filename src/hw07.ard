@@ -21,12 +21,30 @@
 -- 3. Определите рефлексивное транзитивное замыкание отношения.
 --    То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R.
 
-\data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+\data ReflTransClosure {A' : \Type} (R' : A' -> A' -> \Type) (x' y' : A')
+  | refl' (x' = y')
+  | trans' (\Sigma (z' : A') (e1 : R' x' z') (e2 : R' z' y'))
+  | main' (e : R' x' y')
 
 -- 4. Докажите, что если R уже рекфлексивно и транзитивно, то ReflTransClosure R эквивалентно R.
 
 \func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
-  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y => {?}
+  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y =>
+  \lam x y => (toclosure R refl trans x y, fromclosure R refl trans x y)
+  \where {
+    \func fromclosure {A : \Type}
+                      (R : A -> A -> \Type)
+                      (refl : \Pi (x : A) -> R x x)
+                      (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
+                      (x y : A)
+                      (r : ReflTransClosure R x y) : R x y
+      | R, refl, trans, x, y, refl' p => rewrite (sym p) (refl x)
+      | R, refl, trans, x, y, trans' (z', e1, e2) => trans x z' y e1 e2
+      | R, refl, trans, x, y, main' e => e
+
+    \func toclosure {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
+       (x y : A) (r : R x y) : ReflTransClosure R x y => main' r
+  }
 
 -- 5. Определите предикат Sublist xs ys на списках, означающий "список xs является подсписком ys".
 
