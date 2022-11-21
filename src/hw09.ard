@@ -1,43 +1,91 @@
 \import Data.List
+\import Function.Meta
+\import Meta
 \import Order.LinearOrder
 \import Utils (Maybe, just, maybe, nothing)
-\import lect07(Decide)
+\import lect07 (Decide, no, yes)
 \import lect09
 \open LinearOrder
 
 -- 1. Закончите определение \instance Monad для Term.
 
-\instance TermMonad : Monad Term
-  | return => var
-  | >>= {A B : \Set} (t : Term A) (k : A -> Term B) : Term B \elim t {
-    | var v => k v
-    | unit => unit
-    | app t1 t2 => app (t1 >>= k) (t2 >>= k)
-    | lam t => lam (t >>= liftM k)
-  }
-  | return-left => {?}
-  | return-right => {?}
-  | >>=-assoc => {?}
+--\instance TermMonad : Monad Term
+--  | return => var
+--  | >>= {A B : \Set} (t : Term A) (k : A -> Term B) : Term B \elim t {
+--    | var v => k v
+--    | unit => unit
+--    | app t1 t2 => app (t1 >>= k) (t2 >>= k)
+--    | lam t => lam (t >>= liftM k)
+--  }
+--  | return-left => {?}
+--  | return-right => {?}
+--  | >>=-assoc => {?}
 
 -- 2. Определите отношение многошаговой редукции на Term.
 
-\func Red {V : \Set} (t s : Term V) : \Type => {?}
+\data Red-multistep {A : \Set} (from to : Term A)
+  | Red-same (from = to)
+  | Red-step {from' : Term A} (Red1 from from') (Red-multistep from' to)
+
+\func Red {V : \Set} (t s : Term V) : \Type => Red-multistep t s
 
 -- 3. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм, к которому он редуцируется за 1 шаг, либо доказательство, что таких термов нет.
 --    Определите любую стратегию редукции.
 
-\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) => {?}
+\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
+  | lam t => cases (strategy t) \with {
+    | yes (t', t->t') => yes (lam t', redLam t->t')
+    | no n => no $ \lam (s, r) => cases (s, r) \with {
+      | lam t, redLam t->t' => n (t, t->t')
+    }
+  }
+  | var v => Decide.no $ (\lam (term, red) => \case red)
+  | unit => Decide.no $ (\lam (term, red) => \case red)
+  | app (lam t1) t2 => yes (t1 >>= maybe t2 var, redBeta idp idp)
+  | app (var v) t => \case strategy t \with {
+    | yes (t', t->t') => yes (app (var v) t', appRight idp t->t')
+    | no n => no
+        (\lam p => cases p \with {
+        (t', t->t') => cases (t', t->t') \with {
+          | t'1, redBeta p1 p2 => \case p1
+          | app t'1 t'2, appLeft t->t'1 p1 => \case t->t'1
+          | app t'1 t'2, appRight p1 t->t'1 => n (t'2, t->t'1)
+        }
+        })
+  }
+  | app unit t => \case strategy t \with {
+    | yes (t', t->t') => yes (app unit t', appRight idp t->t')
+    | no n => no
+        (\lam p => cases p \with {
+        (t', t->t') => cases (t', t->t') \with {
+          | t'1, redBeta p1 p2 => \case p1
+          | app t'1 t'2, appLeft t->t'1 p1 => \case t->t'1
+          | app t'1 t'2, appRight p1 t->t'1 => n (t'2, t->t'1)
+        }
+        })
+  }
+  | app (app t1 t2) t' => cases (strategy t') \with {
+    | yes (t'', t'->t'') => yes (app (app t1 t2) t'', appRight idp t'->t'')
+    | no n => cases (strategy (app t1 t2)) \with {
+      | yes (trm', trm->trm') => yes (app trm' t', appLeft trm->trm' idp)
+      | no n1 => no $ \lam (t1, t2) => cases (t1, t2) \with {
+        | x, redBeta p p1 => cases p
+        | app x x1, appLeft x2 p => n1 (x, x2)
+        | app x x1, appRight p x2 => n (x1, x2)
+      }
+    }
+  }
 
 -- 4. Докажите, что подтермы достижимого терма достижимы.
 
-\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
-  => {?}
+\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
+  | acc f => acc $ \lam t' t->t' => appAccLeft $ f (app t' s) (appLeft t->t' idp)
 
-\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s
-  => {?}
+\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s \elim a
+  | acc f => acc $ \lam s' s->s' => appAccRight $ f (app t s') (appRight idp s->s')
 
-\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t
-  => {?}
+\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim a
+  | acc f => acc $ \lam t' t->t' => subLamAcc $ f (lam t') (redLam t->t')
 
 -- 5. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
 
